@@ -36,6 +36,7 @@ function FormController(item, options) {
 		trackingOnlyRequired: false,
 		submitCallback: false,
 		ajaxSubmit: false,
+		progress: false,
 	};
 
 	/* Construct */
@@ -160,6 +161,10 @@ function FormController(item, options) {
 			} else {
 				that.item.find('.step[data-step='+step+']').hide();
 				that.item.find('.step[data-step='+(step-1)+']').show();
+				var top = that.item.find('.step[data-step='+(step-1)+']').offset().top;
+				$('html, body').animate({
+			        scrollTop: top-that.options.marginTop
+			    }, that.options.scrollDuration);
 			}
 		});
 	}
@@ -253,21 +258,39 @@ FormController.prototype.validation = function(step) {
 		} else {
 			this.submitted = true;
 			if (this.options.ajaxSubmit) {
-				var data = this.item.serialize();
+				let data = new FormData(this.item[0]);
 				this.item.find('.btn-submit').attr('disabled', true);
 				this.item.css('opacity', '0.3');
 				$.ajax({
 					url: this.item.attr('action'),
 					method: 'POST',
-					data: data
+					data: data,
+					xhr: function() {
+					    var xhr = new window.XMLHttpRequest();
+					    //Upload progress
+						if (that.options.progress && typeof that.options.progress) {
+						    xhr.upload.addEventListener("progress", function(evt){
+						      if (evt.lengthComputable) {
+						        var percentComplete = evt.loaded / evt.total;
+						        //Do something with upload progress
+						        that.options.progress(percentComplete);
+						      }
+						    }, false);
+						}
+					    return xhr;
+					},
+			        cache: false,
+			        contentType: false,
+			        processData: false
 				}).done(function(r){
-					that.item.css('opacity', '1');
-					that.item.find('.btn-submit').attr('disabled', false);
 					if (that.options.submitCallback) {
 						that.options.submitCallback(r, that.item);
 					}
 				}).fail(function(){
 					console.log('FormController: SUBMIT ERROR');
+				}).always(function(){
+					that.item.css('opacity', '1');
+					that.item.find('.btn-submit').attr('disabled', false);
 				});
 			} else {
 				this.item.submit();
@@ -332,24 +355,43 @@ FormController.prototype.control = function(input) {
 		this.display(input, false);
 		return true;
 	}
-	// Si le champs est de type radio
-	if (input.attr('type')=='radio') {
+	// Champs de type radio
+	if (input.attr('type') == 'radio') {
 		var value = this.item.find('input[name='+input.attr('name')+']:checked').val();
-	} else if (input.attr('type')=="checkbox") {
+	}
+	// Champs de type checkbox
+	else if (input.attr('type')=="checkbox") {
 		inputError = input.prop('required') && !input.prop("checked");
 		this.display(input, inputError);
 		return true;
-	} else {
+	}
+	else {
 		var value = input.val();			
 	}
 	var inputError = false;
 
-
-	// Si le champs est requis et n'est pas vide
+	// Contrôle de champ vide
 	if (input.prop('required') && ((Array.isArray(value) && !value.length) || value ==  undefined || (typeof value == 'string' && (value == '' || value.replace(/ /g, "") == '')))) {
 		inputError = true;				
 		this.display(input, inputError);
-	} else if (input.prop('required') || value != '') {
+	}
+	// Si le champs est requis et n'est pas vide
+	else if (input.prop('required') || value != '') {
+		// Champs de type file
+		if (input.attr('type') == 'file') {
+			console.log(input);
+			//  Contrôle multiple files
+			if (!input.attr('multiple') && input[0].files.length > 1) {
+				this.display(input, true);
+				return;
+			}
+			const accept = input.attr('accept').match('/(.*)\/(.*)/');
+			console.log(input[0].files);
+			$.each(input[0].files, function(index, file) {
+				console.log(file);
+			});
+		}
+
 		var that = this;
 		Object.keys(input.data()).map(function(objectKey, index) {
 
@@ -397,6 +439,9 @@ FormController.prototype.control = function(input) {
 						}
 						inputError = value != verifPassword;
 						break;
+					case 'equal':
+							inputError = value != that.item.find('input[name='+expected+']').val();
+							break;
 					case 'duplicate':
 						var originalValue = input.prop("defaultValue");
 
@@ -413,7 +458,7 @@ FormController.prototype.control = function(input) {
 							inputError = false;
 						}
 						break;
-					case 'exist':
+					case 'exists':
 						var originalValue = input.prop("defaultValue");
 
 						if (value != originalValue) {

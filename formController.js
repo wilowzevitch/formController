@@ -204,6 +204,9 @@ function FormController(item, options) {
 
 			validationSuccess = true;
 
+			if (that.options.stepByStep && !$(this).parents('.step').find('.btn-submit').length())
+				return;
+
 			that.item.find('input, textarea, select').each(function(){
 				that.control($(this));
 			});
@@ -379,13 +382,25 @@ FormController.prototype.control = function(input) {
 	else if (input.prop('required') || value != '') {
 		// Champs de type file
 		if (input.attr('type') == 'file') {
-			console.log(input);
+			let test = new RegExp( i.accept.replace( '*', '.\*' ) ).test( i.files[ 0 ].type )
+			console.log(test);
+			let acceptList = input.attr('accept').split(',');
+			let accept = {
+				types: [],
+				ext: []
+			}
+			for (let i = 0; i < acceptList.length; i++) {
+				let matches = acceptList.match('/(([a-zA-Z]+)\/|\.)(.*)/')
+				if (matches[2] !== 0)
+					accept.types.push(matches[2]);
+				accept.ext.push(matches[3])
+			}
 			//  Contrôle multiple files
 			if (!input.attr('multiple') && input[0].files.length > 1) {
 				this.display(input, true);
 				return;
 			}
-			const accept = input.attr('accept').match('/(.*)\/(.*)/');
+			//  const accept = input.attr('accept').match('/(.*)\/(.*)/');
 			console.log(input[0].files);
 			$.each(input[0].files, function(index, file) {
 				console.log(file);
@@ -424,7 +439,7 @@ FormController.prototype.control = function(input) {
 						inputError = !value.match(pattern, flags);
 						break;
 					case 'verifpassword':
-						var verifPassword = that.item.find('input[name='+expected+']').val();
+						var verifPassword = that.item.find('input[name="'+expected+'"]').val();
 						if (that.options.runningControl) {
 							that.item.find('input[name='+expected+']').keyup(function(){
 								if($(that).val()!=that.item.find('input[data-control-verifpassword]').val()){
